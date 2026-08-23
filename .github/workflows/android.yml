@@ -43,7 +43,10 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        # Windows 에서 커밋되면 실행 권한이 빠질 수 있어 여기서 한 번 더 챙깁니다.
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Rename APK
         run: |
