@@ -12,6 +12,7 @@ import {
   parseImport,
   summaryLine,
 } from "./savedNumbers";
+import { buildTables, searchTop, topPool, pick } from "./recommend";
 
 /* ── 팔레트: 실제 로또 용지/영수증에서 가져옴 ───────────────────── */
 const DESK = "#0E141B";
@@ -207,8 +208,11 @@ export default function LottoHistoryChecker() {
   const [booting, setBooting] = useState(true);
   const [saved, setSaved] = useState([]);
   const [savedNote, setSavedNote] = useState("");
+  const [reco, setReco] = useState({ status: "idle", progress: 0 });
+  const [recos, setRecos] = useState([]);
   const fileRef = useRef(null);
   const savedFileRef = useRef(null);
+  const workerRef = useRef(null);
 
   /* 보관함은 브라우저에만 있습니다. 첫 렌더 뒤에 읽어 SSR/프리렌더와도 어긋나지 않게 합니다. */
   useEffect(() => {
@@ -394,6 +398,78 @@ export default function LottoHistoryChecker() {
     reader.readAsText(f, "utf-8");
   };
 
+  /* 추천 조합 ───────────────────────────────────────────────────── */
+  /* 회차 기록이 바뀌면 앞선 탐색 결과는 의미가 없으므로 버립니다. */
+  useEffect(() => {
+    setReco({ status: "idle", progress: 0 });
+    setRecos([]);
+  }, [history]);
+
+  useEffect(() => () => workerRef.current?.terminate(), []);
+
+  const applySearch = (search) => {
+    const { pool, topScore, minScore } = topPool(search, 500);
+    if (!pool.length) {
+      setReco({ status: "error", message: "조건에 맞는 조합을 찾지 못했습니다." });
+      return;
+    }
+    setReco({
+      status: "ready",
+      progress: 1,
+      pool,
+      topScore,
+      minScore,
+      eligible: search.eligible,
+      total: search.total,
+      draws: search.draws,
+      isSample,
+    });
+    setRecos(pick(pool, 5));
+  };
+
+  /* 워커를 쓸 수 없는 환경(옛 브라우저·file://)에서는 이 자리에서 계산합니다. */
+  const runInline = (rows) => {
+    try {
+      applySearch(searchTop(buildTables(rows)));
+    } catch (e) {
+      setReco({ status: "error", message: e.message });
+    }
+  };
+
+  const drawRecos = () => {
+    if (!history.length || reco.status === "working") return;
+    if (reco.status === "ready") {
+      setRecos(pick(reco.pool, 5));
+      return;
+    }
+
+    setReco({ status: "working", progress: 0 });
+    const rows = history.map((h) => ({ numbers: h.numbers }));
+    try {
+      const w = new Worker(new URL("./recommend.worker.js", import.meta.url), { type: "module" });
+      workerRef.current = w;
+      w.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "progress") {
+          setReco((r) => (r.status === "working" ? { ...r, progress: m.value } : r));
+        } else {
+          w.terminate();
+          workerRef.current = null;
+          if (m.type === "done") applySearch(m.search);
+          else setReco({ status: "error", message: m.message });
+        }
+      };
+      w.onerror = () => {
+        w.terminate();
+        workerRef.current = null;
+        runInline(rows);
+      };
+      w.postMessage({ history: rows });
+    } catch {
+      runInline(rows);
+    }
+  };
+
   const ready = picked.length === 6 && history.length > 0;
   const hasWin = result && result.hits.length > 0;
 
@@ -506,6 +582,24 @@ export default function LottoHistoryChecker() {
           font-size:12px;padding:10px;border-radius:8px;border:1px solid ${LINE};
           background:rgba(0,0,0,.25);color:#C9D4DD;resize:vertical;}
         .lc-hint{font-family:var(--mono);font-size:11px;color:${MUTED};margin-top:8px;line-height:1.7;}
+
+        .lc-reco{padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.35);}
+        .lc-reco-lead{font-family:var(--mono);font-size:11px;color:#6B7A85;line-height:1.7;margin-bottom:12px;}
+        .lc-reco-row{border-top:1px dashed #C6CDC7;padding:11px 0 10px;display:flex;align-items:center;gap:10px;
+          flex-wrap:wrap;}
+        .lc-reco-balls{display:flex;gap:5px;flex-wrap:wrap;}
+        .lc-reco-n4{font-family:var(--mono);font-size:11px;color:#5C6B78;margin-left:auto;white-space:nowrap;}
+        .lc-reco-n4 b{color:${INK};font-weight:700;}
+        .lc-reco-use{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 10px;border-radius:4px;
+          border:1px solid #C6CDC7;background:transparent;color:#4A5A66;cursor:pointer;}
+        .lc-reco-use:hover{background:#E2E6E1;color:${INK};}
+        .lc-reco-btn{width:100%;margin-top:14px;padding:11px;border:0;border-radius:5px;cursor:pointer;
+          background:${INK};color:${PAPER};font-family:var(--sans);font-size:14px;font-weight:700;}
+        .lc-reco-btn:disabled{background:#C6CDC7;color:#8A948E;cursor:not-allowed;}
+        .lc-reco-btn:hover:not(:disabled){background:#0B121A;}
+        .lc-bar-progress{height:3px;background:#D5DBD5;border-radius:2px;overflow:hidden;margin-top:10px;}
+        .lc-bar-progress i{display:block;height:100%;background:${INK};transition:width .2s;}
+        .lc-reco-foot{font-family:var(--mono);font-size:10px;color:#8A948E;margin-top:11px;line-height:1.7;}
 
         .lc-vault{padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.35);}
         .lc-vault-list{list-style:none;margin:0;padding:0;}
@@ -656,6 +750,65 @@ export default function LottoHistoryChecker() {
                 ? `번호 ${6 - picked.length}개 더 고르기`
                 : "대조하기"}
             </button>
+          </section>
+
+          {/* 추천 조합 */}
+          <section className="lc-paper lc-sheet lc-reco">
+            <div className="lc-sheet-head">
+              <span>추천 조합</span>
+              <span>{reco.status === "ready" ? `4등 ${reco.minScore}회 이상` : "미탐색"}</span>
+            </div>
+
+            <div className="lc-reco-lead">
+              1·2·3등에 든 적이 <b>한 번도 없으면서</b>
+              <br />
+              4등 이력이 가장 많은 조합을 찾습니다.
+            </div>
+
+            {reco.status === "ready" &&
+              recos.map((r) => (
+                <div key={r.numbers.join("-")} className="lc-reco-row">
+                  <div className="lc-reco-balls">
+                    {r.numbers.map((n) => (
+                      <Ball key={n} n={n} size={28} />
+                    ))}
+                  </div>
+                  <span className="lc-reco-n4">
+                    4등 <b>{r.n4}</b>회
+                  </span>
+                  <button className="lc-reco-use" onClick={() => recall(r)}>
+                    용지에 넣기
+                  </button>
+                </div>
+              ))}
+
+            {reco.status === "error" && <div className="lc-reco-foot">찾지 못했습니다. {reco.message}</div>}
+
+            <button className="lc-reco-btn" disabled={!history.length || reco.status === "working"} onClick={drawRecos}>
+              {!history.length
+                ? "먼저 회차 기록을 불러오세요"
+                : reco.status === "working"
+                ? `전체 조합 훑는 중... ${Math.round(reco.progress * 100)}%`
+                : reco.status === "ready"
+                ? "다시 뽑기"
+                : "추천 조합 뽑기"}
+            </button>
+
+            {reco.status === "working" && (
+              <div className="lc-bar-progress">
+                <i style={{ width: `${Math.round(reco.progress * 100)}%` }} />
+              </div>
+            )}
+
+            {reco.status === "ready" && (
+              <div className="lc-reco-foot">
+                {comma(reco.draws)}회차 기준 · 1~3등 이력이 없는 조합 {comma(reco.eligible)}개 중 4등 이력 상위
+                500개에서 무작위로 5조합을 뽑았습니다. 역대 최다는 4등 {reco.topScore}회.
+                {reco.isSample && " ⚠ 샘플 데이터 기준"}
+                <br />
+                추첨은 매 회차 독립이라, 과거 이력이 많다고 앞으로 당첨될 확률이 높아지지는 않습니다.
+              </div>
+            )}
           </section>
 
           {/* 보관함 */}
