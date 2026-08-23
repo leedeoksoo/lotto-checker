@@ -1,4 +1,17 @@
 import { useState, useRef, useMemo, useEffect } from "react";
+import {
+  loadSaved,
+  persist,
+  upsert,
+  removeAt,
+  has,
+  makeEntry,
+  keyOf,
+  mergeImported,
+  toExport,
+  parseImport,
+  summaryLine,
+} from "./savedNumbers";
 
 /* ── 팔레트: 실제 로또 용지/영수증에서 가져옴 ───────────────────── */
 const DESK = "#0E141B";
@@ -192,7 +205,15 @@ export default function LottoHistoryChecker() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [booting, setBooting] = useState(true);
+  const [saved, setSaved] = useState([]);
+  const [savedNote, setSavedNote] = useState("");
   const fileRef = useRef(null);
+  const savedFileRef = useRef(null);
+
+  /* 보관함은 브라우저에만 있습니다. 첫 렌더 뒤에 읽어 SSR/프리렌더와도 어긋나지 않게 합니다. */
+  useEffect(() => {
+    setSaved(loadSaved());
+  }, []);
 
   /* 저장소에 같이 배포된 lotto_history.json 이 있으면 시작할 때 자동으로 적재 */
   useEffect(() => {
@@ -322,6 +343,57 @@ export default function LottoHistoryChecker() {
     setPrintKey((k) => k + 1);
   };
 
+  /* 보관함 ─────────────────────────────────────────────────────── */
+  const commitSaved = (next, note = "") => {
+    setSaved(next);
+    setSavedNote(persist(next) ? note : "이 브라우저에는 저장할 수 없습니다. (프라이빗 모드이거나 저장 공간이 가득 찼습니다)");
+  };
+
+  const isSaved = result ? has(saved, result.picked) : false;
+
+  const toggleSave = () => {
+    if (!result) return;
+    if (isSaved) {
+      commitSaved(removeAt(saved, keyOf(result.picked)), "보관함에서 뺐습니다.");
+    } else {
+      commitSaved(upsert(saved, makeEntry(result.picked, result)), "보관함에 저장했습니다.");
+    }
+  };
+
+  const recall = (entry) => {
+    setPicked(entry.numbers.slice());
+    setManual(entry.numbers.map(pad).join(" "));
+    setResult(null);
+    setSavedNote("");
+  };
+
+  const exportSaved = () => {
+    const blob = new Blob([toExport(saved)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lotto-saved-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onSavedFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const { list, added } = mergeImported(saved, parseImport(String(reader.result)));
+        commitSaved(list, `${list.length}개 중 ${added}개를 새로 가져왔습니다.`);
+      } catch (err) {
+        setSavedNote(`가져오지 못했습니다. ${err.message}`);
+      }
+    };
+    reader.onerror = () => setSavedNote(`${f.name} 파일을 읽지 못했습니다.`);
+    reader.readAsText(f, "utf-8");
+  };
+
   const ready = picked.length === 6 && history.length > 0;
   const hasWin = result && result.hits.length > 0;
 
@@ -357,6 +429,7 @@ export default function LottoHistoryChecker() {
         .lc-err{margin-top:10px;font-size:13px;line-height:1.5;color:#F0B4B4;
           border-left:2px solid #FF7272;padding:6px 0 6px 12px;}
 
+        .lc-col{display:flex;flex-direction:column;gap:18px;min-width:0;}
         .lc-grid2{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:22px;margin-top:22px;align-items:start;}
         @media (max-width:820px){.lc-grid2{grid-template-columns:1fr;}}
 
@@ -434,6 +507,29 @@ export default function LottoHistoryChecker() {
           background:rgba(0,0,0,.25);color:#C9D4DD;resize:vertical;}
         .lc-hint{font-family:var(--mono);font-size:11px;color:${MUTED};margin-top:8px;line-height:1.7;}
 
+        .lc-vault{padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.35);}
+        .lc-vault-list{list-style:none;margin:0;padding:0;}
+        .lc-item{border-top:1px dashed #C6CDC7;padding:12px 0 11px;}
+        .lc-item:first-child{border-top:0;padding-top:4px;}
+        .lc-item-balls{display:flex;gap:5px;flex-wrap:wrap;}
+        .lc-item-meta{font-family:var(--mono);font-size:11px;color:#6B7A85;margin-top:8px;line-height:1.6;}
+        .lc-item-acts{display:flex;gap:6px;margin-top:9px;}
+        .lc-item-acts button{font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 10px;border-radius:4px;
+          border:1px solid #C6CDC7;background:transparent;color:#4A5A66;cursor:pointer;}
+        .lc-item-acts button:hover{background:#E2E6E1;color:${INK};}
+        .lc-vault-empty{font-family:var(--mono);font-size:11px;color:#8A948E;line-height:1.8;padding:6px 0 2px;}
+        .lc-vault-foot{display:flex;gap:6px;margin-top:14px;border-top:1px solid #DDE2DD;padding-top:12px;}
+        .lc-vault-foot button{flex:1;font-family:var(--sans);font-size:11px;font-weight:600;padding:6px;border-radius:4px;
+          border:1px solid #C6CDC7;background:transparent;color:#4A5A66;cursor:pointer;}
+        .lc-vault-foot button:hover:not(:disabled){background:#E2E6E1;color:${INK};}
+        .lc-vault-foot button:disabled{opacity:.4;cursor:not-allowed;}
+        .lc-vault-note{font-family:var(--mono);font-size:11px;color:#5C6B78;margin-top:10px;line-height:1.6;}
+
+        .lc-save{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:0;padding:4px 10px;
+          border-radius:4px;border:1px solid ${INK};background:transparent;color:${INK};cursor:pointer;}
+        .lc-save:hover{background:${INK};color:${PAPER};}
+        .lc-save[data-on="1"]{background:${INK};color:${PAPER};}
+
         @keyframes lcPrint{from{opacity:0;transform:translateY(-7px);}to{opacity:1;transform:none;}}
         @media (prefers-reduced-motion:reduce){.lc-hit{animation:none;}}
       `}</style>
@@ -498,6 +594,7 @@ export default function LottoHistoryChecker() {
         {error && <div className="lc-err">{error}</div>}
 
         <div className="lc-grid2">
+          <div className="lc-col">
           {/* 마킹 용지 */}
           <section className="lc-paper lc-sheet">
             <div className="lc-sheet-head">
@@ -561,6 +658,60 @@ export default function LottoHistoryChecker() {
             </button>
           </section>
 
+          {/* 보관함 */}
+          <section className="lc-paper lc-sheet lc-vault">
+            <div className="lc-sheet-head">
+              <span>보관함</span>
+              <span>{saved.length}건</span>
+            </div>
+
+            {saved.length ? (
+              <ul className="lc-vault-list">
+                {saved.map((e) => (
+                  <li key={e.id} className="lc-item">
+                    <div className="lc-item-balls">
+                      {e.numbers.map((n) => (
+                        <Ball key={n} n={n} size={28} />
+                      ))}
+                    </div>
+                    <div className="lc-item-meta">
+                      {e.savedAt.slice(0, 10)} 저장 · {summaryLine(e.summary)}
+                    </div>
+                    <div className="lc-item-acts">
+                      <button onClick={() => recall(e)}>불러오기</button>
+                      <button onClick={() => commitSaved(removeAt(saved, e.id), "보관함에서 뺐습니다.")}>
+                        삭제
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="lc-vault-empty">
+                대조한 번호를 저장해두면 여기 쌓입니다.
+                <br />
+                결과 영수증의 «이 번호 저장» 을 누르세요.
+              </div>
+            )}
+
+            <div className="lc-vault-foot">
+              <button onClick={exportSaved} disabled={!saved.length}>
+                내보내기
+              </button>
+              <button onClick={() => savedFileRef.current?.click()}>가져오기</button>
+              <input
+                ref={savedFileRef}
+                type="file"
+                accept=".json"
+                onChange={onSavedFile}
+                style={{ display: "none" }}
+              />
+            </div>
+
+            {savedNote && <div className="lc-vault-note">{savedNote}</div>}
+          </section>
+          </div>
+
           {/* 영수증 */}
           <section>
             <div className="lc-paper lc-receipt">
@@ -575,7 +726,14 @@ export default function LottoHistoryChecker() {
                   <div key={printKey}>
                     <div className="lc-rhead">
                       <span>대조 결과</span>
-                      <span>LOTTO 6/45</span>
+                      <button
+                        className="lc-save"
+                        data-on={isSaved ? "1" : "0"}
+                        onClick={toggleSave}
+                        aria-pressed={isSaved}
+                      >
+                        {isSaved ? "저장됨 ✓" : "이 번호 저장"}
+                      </button>
                     </div>
 
                     <Row label="내 번호" value={result.picked.map(pad).join(" ")} />

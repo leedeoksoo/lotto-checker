@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 .env
 .env.local
+
+# 수집기 부산물 (앱은 json 만 사용)
+public/lotto_history.csv

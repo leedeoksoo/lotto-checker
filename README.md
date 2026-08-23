@@ -5,6 +5,7 @@
 - 1등 6개 일치 · 2등 5개+보너스 · 3등 5개 일치로 판정하고, 4·5등은 회차 수만 집계합니다.
 - 1~3등이 없으면 최다 일치 개수와 가장 근접했던 회차를 대신 보여줍니다.
 - 맞은 번호만 동행복권 공식 볼 색으로 채워 어디가 맞았는지 바로 보입니다.
+- 대조한 번호는 **보관함**에 저장해두면 브라우저에 남아, 나중에 눌러서 그대로 다시 불러올 수 있습니다. JSON 으로 내보내고 가져올 수도 있습니다.
 
 ## 실행
 
@@ -68,7 +69,8 @@ npm run serve:dist   # 또는 python3 -m http.server 4173 --directory dist
 
 ```
 ├─ src/
-│  ├─ LottoHistoryChecker.jsx   화면 전체 (마킹 용지 + 결과 영수증)
+│  ├─ LottoHistoryChecker.jsx   화면 전체 (마킹 용지 + 결과 영수증 + 보관함)
+│  ├─ savedNumbers.js          보관함 저장/병합 로직 (localStorage)
 │  ├─ main.jsx
 │  └─ index.css
 ├─ scripts/
