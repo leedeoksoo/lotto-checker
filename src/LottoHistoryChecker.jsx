@@ -482,10 +482,24 @@ export default function LottoHistoryChecker() {
           font-family:var(--sans);
           background:
             radial-gradient(120% 80% at 50% -10%, ${DESK2} 0%, ${DESK} 60%);
-          color:#C9D4DD; min-height:100vh; padding:32px 20px 56px;
+          color:#C9D4DD; min-height:100vh;
+          /* 안드로이드 앱·노치 화면에서 상태표시줄 아래로 내용이 들어가지 않게 합니다. */
+          padding:calc(32px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+                  calc(56px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
           -webkit-font-smoothing:antialiased;
         }
         .lc-wrap{max-width:1020px;margin:0 auto;}
+        @media (max-width:520px){
+          .lc-root{padding-top:calc(18px + env(safe-area-inset-top));padding-left:calc(12px + env(safe-area-inset-left));
+            padding-right:calc(12px + env(safe-area-inset-right));}
+          .lc-h1{font-size:27px;}
+          .lc-bar{padding:10px;gap:6px;}
+          .lc-status{width:100%;margin-bottom:4px;}
+          .lc-btn{flex:1 1 auto;white-space:nowrap;padding:8px 10px;font-size:12px;}
+          .lc-sheet,.lc-receipt-body{padding-left:13px;padding-right:13px;}
+          .lc-cells{gap:4px;}
+          .lc-cell{font-size:12px;}
+        }
         .lc-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:${MUTED};}
         .lc-h1{font-size:clamp(30px,5vw,46px);font-weight:800;letter-spacing:-.035em;color:#F0F5F8;margin:10px 0 8px;line-height:1.05;}
         .lc-sub{font-size:14px;color:#8C9AA6;max-width:44ch;line-height:1.6;}
@@ -507,7 +521,16 @@ export default function LottoHistoryChecker() {
 
         .lc-col{display:flex;flex-direction:column;gap:18px;min-width:0;}
         .lc-grid2{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:22px;margin-top:22px;align-items:start;}
-        @media (max-width:820px){.lc-grid2{grid-template-columns:1fr;}}
+        @media (max-width:820px){
+          .lc-grid2{grid-template-columns:1fr;}
+          /* 한 줄로 쌓일 때는 «용지 → 결과 → 추천 → 보관함» 순이 자연스럽습니다.
+             display:contents 로 왼쪽 열을 풀어 순서를 다시 매깁니다. */
+          .lc-col{display:contents;}
+          .lc-sheet{order:1;}
+          .lc-resultcol{order:2;}
+          .lc-reco{order:3;}
+          .lc-vault{order:4;}
+        }
 
         .lc-paper{background:${PAPER};color:${INK};border-radius:4px;}
         .lc-sheet{padding:18px 18px 20px;box-shadow:0 18px 40px rgba(0,0,0,.45);}
@@ -866,7 +889,7 @@ export default function LottoHistoryChecker() {
           </div>
 
           {/* 영수증 */}
-          <section>
+          <section className="lc-resultcol">
             <div className="lc-paper lc-receipt">
               <div className="lc-receipt-body">
                 {!result ? (

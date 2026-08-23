@@ -8,6 +8,39 @@
 - **추천 조합** — 1·2·3등에 든 적이 한 번도 없으면서 4등 이력이 가장 많은 조합을 전체 8,145,060가지에서 완전 탐색해 5개씩 뽑아줍니다. (과거 기록일 뿐 당첨 확률과는 무관합니다.)
 - 대조한 번호는 **보관함**에 저장해두면 브라우저에 남아, 나중에 눌러서 그대로 다시 불러올 수 있습니다. JSON 으로 내보내고 가져올 수도 있습니다.
 
+## 안드로이드에서 쓰기
+
+두 가지 방법이 있습니다.
+
+**1) 홈 화면에 추가 (설치할 것 없음)**
+
+폰 크롬으로 배포 주소를 열고 메뉴 → «홈 화면에 추가». 아이콘이 생기고 주소창 없는
+전체화면으로 뜹니다. 회차 기록까지 미리 받아두므로 **비행기모드에서도** 대조와 추천이
+그대로 됩니다. 업데이트는 자동입니다.
+
+**2) APK 설치**
+
+[Releases](../../releases) 에서 최신 `lotto-checker-*.apk` 를 폰 브라우저로 내려받아
+설치합니다. 처음 한 번은 «출처를 알 수 없는 앱» 설치를 허용해야 합니다.
+(설정 → 앱 → 특별한 액세스 → 알 수 없는 앱 설치)
+
+APK 는 태그를 밀면 GitHub Actions 가 만들어 Release 에 올립니다.
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+로컬에 JDK·Android SDK 가 있다면 직접 빌드할 수도 있습니다.
+
+```bash
+npm run android:sync     # vite build + cap sync
+cd android && ./gradlew assembleDebug
+# android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+아이콘을 바꾸려면 `scripts/make_icons.py` 를 고치고 `npm run icons` 를 돌리면
+PWA 아이콘과 안드로이드 런처 아이콘이 한 번에 다시 만들어집니다.
+
 ## 실행
 
 ```bash
@@ -79,7 +112,8 @@ npm run serve:dist   # 또는 python3 -m http.server 4173 --directory dist
 ├─ scripts/
 │  └─ fetch_lotto_history.py    동행복권 회차 수집기 (표준 라이브러리만 사용)
 ├─ public/
-│  └─ lotto_history.json        회차 기록 — 있으면 자동 적재
+│  ├─ lotto_history.json        회차 기록 — 있으면 자동 적재
+│  └─ icons/                    PWA 아이콘 (scripts/make_icons.py 로 생성)
 └─ .github/workflows/deploy.yml GitHub Pages 배포
 ```
 

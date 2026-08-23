@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.leedeoksoo.lottochecker",
+  "appName": "로또 대조기",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#0E141B"
+  }
+}
