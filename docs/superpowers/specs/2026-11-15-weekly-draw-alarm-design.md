@@ -40,8 +40,9 @@
   컴포넌트에서 `persist()` 성공 직후와 앱 시작 시 `loadSaved()` 직후에 호출한다. 실패해도 무시.
 - `enable()` — 알림 권한 요청 후 알람 등록. `{ enabled, notifPermission, exactAlarm }` 반환.
 - `disable()` — 알람 취소.
-- `status()` — `{ supported, enabled, notifPermission, exactAlarm, lastRound }`.
+- `status()` — `{ supported, enabled, notifPermission, exactAlarm, nextAt }` (`nextAt` 은 다음 확인 시각 ms).
 - `openExactAlarmSettings()` — 정확한 알람 권한 설정 화면 열기.
+- `openNotificationSettings()` — 앱 알림 설정 화면 열기.
 - `checkNow()` — 지금 즉시 조회·대조·알림 (시각 제한, 중복 방지 무시). 동작 확인용.
 
 ### Java: `android/app/src/main/java/io/github/leedeoksoo/lottochecker/alarm/`
@@ -103,7 +104,11 @@
 - 스위치: `매주 토 21:10 결과 알림`
 - 켤 때 알림 권한이 거부되면 스위치를 끄고 안내: `알림 권한이 꺼져 있어요. 설정에서 허용해 주세요.`
 - `exactAlarm` 이 거짓이면 작은 안내 + 버튼: `정확한 시각 권한이 없어 최대 10분 늦을 수 있어요 [설정 열기]`
-- 켜져 있을 때 보조 문구: `마지막 알림: 1,197회` (없으면 생략)과 작은 `지금 확인` 버튼(`checkNow`).
+- 켜져 있을 때 보조 문구: `다음 확인: 11월 21일(토) 21:10` 과 작은 `지금 확인` 버튼(`checkNow`).
+- 켤 때 `lastNotifiedRound` 를 기준점으로 맞춘다: 이미 지난 회차는 알리지 않는다. 단 토 21:10~23:00
+  사이에 켜면 그날 회차를 바로 확인한다.
+- 알림 권한이 거부돼 있으면 `[설정 열기]` 로 앱 알림 설정(`openNotificationSettings`)을 연다.
+- 설정 화면에서 돌아오면(`visibilitychange`) 상태를 다시 읽는다.
 
 ## 테스트
 
