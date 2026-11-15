@@ -88,6 +88,28 @@ public class LottoAlarmPlugin extends Plugin {
         call.resolve();
     }
 
+    /** 빠진 회차를 동행복권에서 받아 { rows: [...] } 로 돌려준다. 네트워크 작업이라 별도 스레드에서. */
+    @PluginMethod
+    public void fetchRounds(PluginCall call) {
+        Integer from = call.getInt("from");
+        Integer to = call.getInt("to");
+        if (from == null || to == null || from < 1 || to < from || to - from > 200) {
+            call.reject("잘못된 회차 범위");
+            return;
+        }
+        new Thread(() -> {
+                    try {
+                        JSObject o = new JSObject();
+                        o.put("rows", new JSArray(LottoApi.fetchRange(from, to).toString()));
+                        call.resolve(o);
+                    } catch (Exception e) {
+                        call.reject("회차를 받지 못했습니다: " + e.getMessage());
+                    }
+                },
+                "lotto-fetch-rounds")
+                .start();
+    }
+
     @PluginMethod
     public void openExactAlarmSettings(PluginCall call) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

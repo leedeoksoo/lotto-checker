@@ -14,6 +14,7 @@ import {
 } from "./savedNumbers";
 import { buildTables, searchTop, topPool, pick } from "./recommend";
 import * as drawAlarm from "./drawAlarm";
+import * as historyCache from "./historyCache";
 
 /* ── 팔레트: 실제 로또 용지/영수증에서 가져옴 ───────────────────── */
 const DESK = "#0E141B";
@@ -56,6 +57,12 @@ function normalizeRow(r, idx) {
     prize: r.firstWinamnt ?? r.prize ?? null,
     winners: r.firstPrzwnerCo ?? r.winners ?? null,
   };
+}
+
+/* 기본 기록 뒤에 앱이 받아 둔 회차(원본 형식)를 이어 붙입니다. */
+function withExtra(rows, extraRaw) {
+  const add = extraRaw.map(normalizeRow).filter(Boolean);
+  return add.length ? [...rows, ...add] : rows;
 }
 
 function parseHistory(text) {
@@ -260,9 +267,29 @@ export default function LottoHistoryChecker() {
         if (!alive) return;
         const rows = parseHistory(text);
         rows.sort((a, b) => a.round - b.round);
-        setHistory(rows);
-        setSource("lotto_history.json");
+        const baseMax = rows[rows.length - 1].round;
+
+        // 앱이 전에 받아 둔 최신 회차를 먼저 붙여서 보여줍니다.
+        const extra = historyCache.mergeExtra(baseMax, historyCache.loadExtra(), []);
+        const shown = withExtra(rows, extra);
+        const shownLabel = historyCache.sourceLabel(extra.length);
+        setHistory(shown);
+        setSource(shownLabel);
         setIsSample(false);
+
+        // 안드로이드 앱이면 그 뒤로 빠진 회차를 동행복권에서 직접 받아 쌓습니다. 실패하면 다음 실행 때 다시.
+        const range = historyCache.pendingRange(shown[shown.length - 1].round);
+        if (!range) return;
+        drawAlarm.fetchRounds(range.from, range.to).then((fetched) => {
+          const next = historyCache.mergeExtra(baseMax, extra, fetched);
+          if (!alive || next.length === extra.length) return;
+          historyCache.saveExtra(next);
+          const updated = withExtra(rows, next);
+          const label = historyCache.sourceLabel(next.length);
+          // 그 사이 사용자가 다른 기록 파일을 불러왔으면 건드리지 않습니다.
+          setHistory((h) => (h === shown ? updated : h));
+          setSource((s) => (s === shownLabel ? label : s));
+        });
       })
       .catch(() => {})
       .finally(() => alive && setBooting(false));

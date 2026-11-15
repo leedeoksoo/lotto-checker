@@ -45,6 +45,12 @@ cd android && ./gradlew assembleDebug
 23:00 까지 10분마다 다시 확인합니다. 안드로이드 12 이상에서 «알람 및 리마인더» 권한이 없으면
 최대 10분 늦을 수 있습니다. 웹/PWA 에서는 이 항목이 보이지 않습니다.
 
+**최신 회차 자동 갱신 (APK 전용)**
+
+앱을 열 때마다 앱에 들어 있는 기록 이후로 빠진 회차를 동행복권에서 직접 받아 폰에 쌓습니다
+(`lc.history.extra.v1`). 동행복권은 해외 서버(GitHub Actions 포함)의 접속을 막기 때문에 저장소의
+`lotto_history.json` 은 한국 네트워크의 PC 에서 `npm run fetch:win` 으로 갱신해 커밋해야 합니다.
+
 아이콘을 바꾸려면 `scripts/make_icons.py` 를 고치고 `npm run icons` 를 돌리면
 PWA 아이콘과 안드로이드 런처 아이콘이 한 번에 다시 만들어집니다.
 

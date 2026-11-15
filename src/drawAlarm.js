@@ -24,6 +24,17 @@ export function syncSaved(list) {
   return LottoAlarm.syncSaved({ saved }).catch(() => {});
 }
 
+/* 빠진 회차를 네이티브가 동행복권에서 직접 받아옵니다(웹뷰 CORS 와 무관). 웹이나 실패 시 []. */
+export async function fetchRounds(from, to) {
+  if (!LottoAlarm) return [];
+  try {
+    const res = await LottoAlarm.fetchRounds({ from, to });
+    return Array.isArray(res?.rows) ? res.rows : [];
+  } catch {
+    return [];
+  }
+}
+
 export const status = () => call("status");
 export const enable = () => call("enable");
 export const disable = () => call("disable");
