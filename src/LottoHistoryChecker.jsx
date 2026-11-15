@@ -13,6 +13,7 @@ import {
   summaryLine,
 } from "./savedNumbers";
 import { buildTables, searchTop, topPool, pick } from "./recommend";
+import * as drawAlarm from "./drawAlarm";
 
 /* ── 팔레트: 실제 로또 용지/영수증에서 가져옴 ───────────────────── */
 const DESK = "#0E141B";
@@ -208,6 +209,8 @@ export default function LottoHistoryChecker() {
   const [booting, setBooting] = useState(true);
   const [saved, setSaved] = useState([]);
   const [savedNote, setSavedNote] = useState("");
+  const [alarm, setAlarm] = useState({ supported: false });
+  const [alarmNote, setAlarmNote] = useState("");
   const [reco, setReco] = useState({ status: "idle", progress: 0 });
   const [recos, setRecos] = useState([]);
   const fileRef = useRef(null);
@@ -216,8 +219,36 @@ export default function LottoHistoryChecker() {
 
   /* 보관함은 브라우저에만 있습니다. 첫 렌더 뒤에 읽어 SSR/프리렌더와도 어긋나지 않게 합니다. */
   useEffect(() => {
-    setSaved(loadSaved());
+    const list = loadSaved();
+    setSaved(list);
+    // 안드로이드 앱이면 토요일 알림이 읽을 수 있게 네이티브 사본을 맞춰둡니다. 웹에서는 아무 일도 안 합니다.
+    drawAlarm.syncSaved(list);
   }, []);
+
+  /* 토요일 결과 알림 상태. 설정 화면에 다녀오면(권한 변경) 다시 읽습니다. */
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => drawAlarm.status().then((s) => alive && setAlarm(s));
+    refresh();
+    const onVis = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  const toggleAlarm = async () => {
+    setAlarmNote("");
+    const s = alarm.enabled ? await drawAlarm.disable() : await drawAlarm.enable();
+    setAlarm(s);
+    if (!alarm.enabled && !s.enabled) setAlarmNote("알림 권한이 꺼져 있어요. 설정에서 허용해 주세요.");
+  };
+
+  const checkAlarmNow = async () => {
+    await drawAlarm.checkNow();
+    setAlarmNote("최신 회차를 확인하고 있어요. 잠시 뒤 알림으로 알려드립니다.");
+  };
 
   /* 저장소에 같이 배포된 lotto_history.json 이 있으면 시작할 때 자동으로 적재 */
   useEffect(() => {
@@ -350,7 +381,9 @@ export default function LottoHistoryChecker() {
   /* 보관함 ─────────────────────────────────────────────────────── */
   const commitSaved = (next, note = "") => {
     setSaved(next);
-    setSavedNote(persist(next) ? note : "이 브라우저에는 저장할 수 없습니다. (프라이빗 모드이거나 저장 공간이 가득 찼습니다)");
+    const ok = persist(next);
+    if (ok) drawAlarm.syncSaved(next);
+    setSavedNote(ok ? note : "이 브라우저에는 저장할 수 없습니다. (프라이빗 모드이거나 저장 공간이 가득 찼습니다)");
   };
 
   const isSaved = result ? has(saved, result.picked) : false;
@@ -641,6 +674,21 @@ export default function LottoHistoryChecker() {
         .lc-vault-foot button:hover:not(:disabled){background:#E2E6E1;color:${INK};}
         .lc-vault-foot button:disabled{opacity:.4;cursor:not-allowed;}
         .lc-vault-note{font-family:var(--mono);font-size:11px;color:#5C6B78;margin-top:10px;line-height:1.6;}
+        .lc-alarm{margin-top:14px;border-top:1px solid #DDE2DD;padding-top:12px;}
+        .lc-alarm-row{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;
+          background:transparent;border:0;padding:2px 0;cursor:pointer;font-family:var(--sans);font-size:12px;
+          font-weight:600;color:${INK};text-align:left;}
+        .lc-switch{position:relative;flex:none;width:34px;height:20px;border-radius:10px;background:#C6CDC7;transition:background .15s;}
+        .lc-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+          background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s;}
+        .lc-switch[data-on="1"]{background:#2F7D5B;}
+        .lc-switch[data-on="1"]::after{transform:translateX(14px);}
+        .lc-alarm-sub,.lc-alarm-warn{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+          font-family:var(--mono);font-size:11px;color:#6B7A85;margin-top:8px;line-height:1.6;}
+        .lc-alarm-warn{color:#9A5B2E;}
+        .lc-alarm-sub button,.lc-alarm-warn button{font-family:var(--sans);font-size:11px;font-weight:600;padding:4px 9px;
+          border-radius:4px;border:1px solid #C6CDC7;background:transparent;color:#4A5A66;cursor:pointer;}
+        .lc-alarm-sub button:hover,.lc-alarm-warn button:hover{background:#E2E6E1;color:${INK};}
 
         .lc-save{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:0;padding:4px 10px;
           border-radius:4px;border:1px solid ${INK};background:transparent;color:${INK};cursor:pointer;}
@@ -867,6 +915,47 @@ export default function LottoHistoryChecker() {
                 대조한 번호를 저장해두면 여기 쌓입니다.
                 <br />
                 결과 영수증의 «이 번호 저장» 을 누르세요.
+              </div>
+            )}
+
+            {alarm.supported && (
+              <div className="lc-alarm">
+                <button
+                  className="lc-alarm-row"
+                  role="switch"
+                  aria-checked={!!alarm.enabled}
+                  onClick={toggleAlarm}
+                >
+                  <span>매주 토 21:10 결과 알림</span>
+                  <span className="lc-switch" data-on={alarm.enabled ? "1" : "0"} />
+                </button>
+                {alarm.enabled && (
+                  <div className="lc-alarm-sub">
+                    <span>다음 확인: {drawAlarm.formatNextAt(alarm.nextAt)}</span>
+                    <button onClick={checkAlarmNow}>지금 확인</button>
+                  </div>
+                )}
+                {alarm.enabled && !alarm.notifPermission && (
+                  <div className="lc-alarm-warn">
+                    알림이 꺼져 있어 결과가 표시되지 않아요.
+                    <button onClick={drawAlarm.openNotificationSettings}>설정 열기</button>
+                  </div>
+                )}
+                {!alarm.enabled && alarmNote.startsWith("알림 권한") && (
+                  <div className="lc-alarm-warn">
+                    {alarmNote}
+                    <button onClick={drawAlarm.openNotificationSettings}>설정 열기</button>
+                  </div>
+                )}
+                {alarm.enabled && !alarm.exactAlarm && (
+                  <div className="lc-alarm-warn">
+                    정확한 시각 권한이 없어 최대 10분 늦을 수 있어요.
+                    <button onClick={drawAlarm.openExactAlarmSettings}>설정 열기</button>
+                  </div>
+                )}
+                {alarm.enabled && alarmNote && !alarmNote.startsWith("알림 권한") && (
+                  <div className="lc-vault-note">{alarmNote}</div>
+                )}
               </div>
             )}
 

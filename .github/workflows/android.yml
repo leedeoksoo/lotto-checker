@@ -44,9 +44,10 @@ jobs:
       - name: Build debug APK
         working-directory: android
         # Windows 에서 커밋되면 실행 권한이 빠질 수 있어 여기서 한 번 더 챙깁니다.
+        # 단위 테스트(토요일 알림의 회차·등수 계산)가 실패하면 APK 를 만들지 않습니다.
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon
 
       - name: Rename APK
         run: |

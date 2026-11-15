@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 상태 표시줄용 단색 아이콘: 공 하나에 6 표시 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2a10,10 0,1 1,0 20a10,10 0,1 1,0 -20zM12,6.5a5.5,5.5 0,1 0,0 11a5.5,5.5 0,1 0,0 -11z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,9.2a2.8,2.8 0,1 1,0 5.6a2.8,2.8 0,1 1,0 -5.6z" />
+</vector>
