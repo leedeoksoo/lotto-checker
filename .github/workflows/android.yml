@@ -29,6 +29,9 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          # 기본값(tools platform-tools)의 'tools' 패키지가 SDK 저장소에서 빠져 설치가 실패합니다.
+          packages: platform-tools
 
       - run: npm ci
 
